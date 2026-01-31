@@ -1,0 +1,45 @@
+### AUTH: Login as Admin
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+### BRANCHES: List branches (ADMIN gets all, others only their own)
+GET http://localhost:3001/api/branches
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+### STAFF: Create staff (ADMIN only)
+POST http://localhost:3001/api/admin/staff
+Content-Type: application/json
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+{
+  "email": "new.staff@example.com",
+  "password": "s3cret",
+  "role": "STAFF",
+  "branchId": 1
+}
+
+### STAFF: Reset password (ADMIN only)
+PATCH http://localhost:3001/api/admin/staff/{{STAFF_ID}}/reset-password
+Content-Type: application/json
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+{
+  "password": "newpass123"
+}
+
+### ORDERS: List orders scoped to active branch (pass ?branchId for ADMIN)
+GET http://localhost:3001/api/orders?branchId=1
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+### INVENTORY: Get branch inventory
+GET http://localhost:3001/api/inventory/1
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+### FEEDBACK: Get feedback for branch
+GET http://localhost:3001/api/feedback/1
+Authorization: Bearer {{ADMIN_TOKEN}}

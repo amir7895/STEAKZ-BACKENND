@@ -1,0 +1,243 @@
+// This is your Prisma schema file
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  CHEF
+  MANAGER
+  ADMIN
+}
+
+model Branch {
+  id              Int             @id @default(autoincrement())
+  name            String
+  location        String
+  // Multi-Branch Enhancement: internationalization/location/contact fields (all optional for backward compatibility)
+  country         String?         // Multi-Branch Enhancement
+  city            String?         // Multi-Branch Enhancement
+  address         String?         // Multi-Branch Enhancement
+  postalCode      String?         // Multi-Branch Enhancement
+  phone           String?         // Multi-Branch Enhancement
+  email           String?         // Multi-Branch Enhancement
+  timezone        String?         // Multi-Branch Enhancement
+  latitude        Float?          // Multi-Branch Enhancement
+  longitude       Float?          // Multi-Branch Enhancement
+  openingTime     String?         // Multi-Branch Enhancement (e.g., "09:00")
+  closingTime     String?         // Multi-Branch Enhancement (e.g., "22:00")
+  holidays        Json?           // Multi-Branch Enhancement (array of ISO dates or objects)
+  users           User[]
+  // Multi-Branch Enhancement: inverse relation for users' active branch
+  activeUsers     User[]          @relation("ActiveBranch") // Multi-Branch Enhancement
+  menuItems       MenuItem[]
+  inventoryItems  InventoryItem[]
+  orders          Order[]
+  reservations    Reservation[]
+  feedback        Feedback[]
+  financialRecord FinancialRecord[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  // SAFE TEST ONLY / Multi-Branch Enhancement back-relations
+  testPrices      BranchPrice[]     // SAFE TEST ONLY
+  testInventory   BranchInventory[] // SAFE TEST ONLY
+  testStaff       Staff[]           // SAFE TEST ONLY
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  password     String
+  role         UserRole
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  branchId     Int
+  // Multi-Branch Enhancement: Persisted active branch per user (optional)
+  activeBranch   Branch?      @relation("ActiveBranch", fields: [activeBranchId], references: [id])
+  activeBranchId Int?
+  orders       Order[]
+  reservations Reservation[]
+  feedback     Feedback[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model MenuItem {
+  id            Int         @id @default(autoincrement())
+  name          String
+  description   String
+  price         Float
+  category      String
+  branch        Branch      @relation(fields: [branchId], references: [id])
+  branchId      Int
+  orderItems    OrderItem[]
+  inventoryItem InventoryItem?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  // SAFE TEST ONLY / Multi-Branch Enhancement back-relations
+  testBranchPrices    BranchPrice[]    // SAFE TEST ONLY
+  testBranchInventory BranchInventory[] // SAFE TEST ONLY
+}
+
+model InventoryItem {
+  id          Int      @id @default(autoincrement())
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId  Int      @unique
+  quantity    Int
+  minQuantity Int      @default(10)
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  branchId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  user       User        @relation(fields: [userId], references: [id])
+  userId     Int
+  branch     Branch      @relation(fields: [branchId], references: [id])
+  branchId   Int
+  status     String      @default("PENDING") // PENDING, PREPARING, READY, COMPLETED, CANCELLED
+  items      OrderItem[]
+  total      Float
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId Int
+  quantity   Int
+  price      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Reservation {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  branchId  Int
+  date      DateTime
+  time      String
+  guests    Int
+  status    String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  branchId  Int
+  rating    Int
+  comment   String
+  reply     String?
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FinancialRecord {
+  id          Int      @id @default(autoincrement())
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  branchId    Int
+  type        String   // REVENUE, EXPENSE
+  amount      Float
+  description String
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// -------------------------------------------------------------
+// SAFE TEST ONLY / Multi-Branch Enhancement: Additional enums & models
+// These are additive, isolated test entities that DO NOT replace existing
+// production tables. They enable branch-specific pricing, inventory and staff
+// experimentation without touching live production data.
+// -------------------------------------------------------------
+
+// SAFE TEST ONLY / Multi-Branch Enhancement: Staff role enumeration for test Staff model
+enum StaffRole { // SAFE TEST ONLY / Multi-Branch Enhancement
+  CHEF
+  SERVER
+  HOST
+  BARTENDER
+  RUNNER
+  MANAGER // Distinct from UserRole; used solely in test Staff context
+}
+
+// SAFE TEST ONLY / Multi-Branch Enhancement: Branch-specific price overrides
+// If a BranchPrice exists for (branchId, menuItemId) its overridePrice can be displayed
+// on test pages instead of the base MenuItem.price. Does not modify MenuItem.
+model BranchPrice { // SAFE TEST ONLY / Multi-Branch Enhancement
+  id           Int       @id @default(autoincrement())
+  branch       Branch    @relation(fields: [branchId], references: [id])
+  branchId     Int
+  menuItem     MenuItem  @relation(fields: [menuItemId], references: [id])
+  menuItemId   Int
+  overridePrice Float
+  currency     String?   // e.g. "USD", "GBP"; optional for tests
+  active       Boolean   @default(true)
+  notes        String?   // optional test notes
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@unique([branchId, menuItemId]) // ensure single override per item per branch
+}
+
+// SAFE TEST ONLY / Multi-Branch Enhancement: Branch-specific INVENTORY sandbox
+// Separate from production InventoryItem to run simulations / forecasting.
+// Does not update production stock counts.
+model BranchInventory { // SAFE TEST ONLY / Multi-Branch Enhancement
+  id          Int       @id @default(autoincrement())
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  branchId    Int
+  name        String    // Arbitrary test item name (can mirror MenuItem.name)
+  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id]) // optional link for convenience
+  menuItemId  Int?      // nullable: allows purely synthetic test items
+  quantity    Int       @default(0)
+  minQuantity Int       @default(10)
+  unit        String?   // e.g. "kg", "pcs"
+  status      String?   // e.g. "OK", "LOW", "OUT" (derived externally in tests)
+  notes       String?   // optional test notes
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  @@index([branchId])
+  @@index([menuItemId])
+}
+
+// SAFE TEST ONLY / Multi-Branch Enhancement: Branch-specific Staff registry
+// Independent of User accounts; allows sandbox staffing scenarios without
+// altering User.role or authentication logic.
+model Staff { // SAFE TEST ONLY / Multi-Branch Enhancement
+  id         Int       @id @default(autoincrement())
+  branch     Branch    @relation(fields: [branchId], references: [id])
+  branchId   Int
+  name       String
+  role       StaffRole
+  email      String?   // optional contact (not used for login)
+  phone      String?   // optional contact
+  active     Boolean   @default(true)
+  hourlyRate Float?    // optional sandbox compensation field
+  notes      String?   // optional test notes
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  @@index([branchId])
+  @@index([role])
+}
+
+// -------------------------------------------------------------
+// END SAFE TEST ONLY / Multi-Branch Enhancement additions
+// -------------------------------------------------------------
